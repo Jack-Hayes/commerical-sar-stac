@@ -10,28 +10,29 @@ on:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0} # Use login shell for all steps
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Mamba
-        #  Pin to a specific, stable version instead of the floating 'v1' tag
-        uses: mamba-org/setup-mamba@v1.10.0
+      - name: Set up Mambaforge environment
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          mamba-version: "latest"
-          
-      - name: Create environment
-        run: mamba env create -f environment.yml
+          python-version: "3.11"
+          environment-file: environment.yml
+          mamba-version: "*"
+          activate-environment: commercial-sar
+          auto-update-conda: true
+          channel-priority: "strict"
 
-      - name: Run linter
-        shell: "bash -l {0}"
-        run: |
-          mamba activate commercial-sar
-          ruff check .
-          ruff format --check .
+      - name: Lint with Ruff
+        run: ruff check .
 
-      - name: Run tests
-        shell: "bash -l {0}"
-        run: |
-          mamba activate commercial-sar
-          pytest
+      - name: Format check with Ruff
+        run: ruff format --check .
+
+      - name: Run tests with Pytest
+        run: pytest

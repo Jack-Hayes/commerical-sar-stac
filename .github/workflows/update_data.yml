@@ -9,6 +9,9 @@ on:
 jobs:
   update-parquet-files:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
     permissions:
       contents: write # Allows the job to push to the repo
 
@@ -16,20 +19,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Mamba
-        uses: mamba-org/setup-mamba@v1
+      - name: Set up Mambaforge environment
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          mamba-version: "latest"
-          
-      - name: Create environment
-        run: mamba env create -f environment.yml
-        
+          python-version: "3.11"
+          environment-file: environment.yml
+          mamba-version: "*"
+          activate-environment: commercial-sar
+          auto-update-conda: true
+          channel-priority: "strict"
+
       - name: Run data ingestion script
-        shell: "bash -l {0}"
-        run: |
-          mamba activate commercial-sar
-          # THE FIX: Run the script as a module to ensure correct pathing
-          python -m scripts.main capella iceye umbra
+        run: python -m scripts.main capella iceye umbra
           
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v5
