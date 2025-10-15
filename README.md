@@ -6,6 +6,40 @@ The primary goal is to create a unified, harmonized GeoDataFrame for each provid
 
 > **_NOTE:_**  I beleive that Synspective only provides open data upon request as of October 15, 2025 https://synspective.com/gallery/
 
+Inspired by [@scottyhq](https://github.com/scottyhq)'s [stac2geojson](https://github.com/uw-cryo/stac2geojson)
+
+## Downloading the Parquet Files
+
+You can download the latest generated Parquet files directly using command-line tools like `curl` (for Linux/macOS) or `Invoke-WebRequest` (for Windows PowerShell)
+
+---
+
+### Bash (Linux/macOS)
+
+```bash
+# Download the ICEYE parquet file
+curl -L -o iceye.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/iceye/iceye.parquet"
+
+# Download the Umbra parquet file
+curl -L -o umbra.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/umbra/umbra.parquet"
+
+# Download a sample Capella parquet file (GEC)
+curl -L -o capella_GEC.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/capella/capella_GEC.parquet"
+```
+
+### PowerShell (Windows)
+
+```console
+# Download the ICEYE parquet file
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/iceye/iceye.parquet" -OutFile "iceye.parquet"
+
+# Download the Umbra parquet file
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/umbra/umbra.parquet" -OutFile "umbra.parquet"
+
+# Download a sample Capella parquet file (GEC)
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/capella/capella_GEC.parquet" -OutFile "capella_GEC.parquet"
+```
+
 ## Data and API Usage Disclaimer
 
 This repository contains open-source code for accessing and processing sample datasets provided by commercial companies including Capella Space, Umbra, and ICEYE.
@@ -39,7 +73,7 @@ The ingestion process follows cloud-optimized best practices:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/Jack-Hayes/commerical-sar-stac.git](https://github.com/Jack-Hayes/commerical-sar-stac.git)
+    git clone https://github.com/Jack-Hayes/commerical-sar-stac.git
     cd commerical-sar-stac
     ```
 

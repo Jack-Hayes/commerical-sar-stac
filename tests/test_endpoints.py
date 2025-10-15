@@ -12,8 +12,6 @@ from scripts.main import CATALOG_URLS
         ("iceye", CATALOG_URLS["iceye"]),
     ],
 )
-
-
 def test_http_endpoints_are_reachable(provider, url):
     """Tests if the HTTP-based STAC endpoints are online and accessible."""
     try:

@@ -1,5 +1,3 @@
-
-
 def process_stac_item(item_json, url, provider):
     """Generic pre-processing for a raw STAC item JSON."""
     if not item_json or not item_json.get("geometry"):

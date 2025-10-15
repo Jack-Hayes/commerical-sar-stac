@@ -21,12 +21,9 @@ def discover_child_links(catalog_url):
         response = requests.get(catalog_url)
         response.raise_for_status()
         child_links = [
-            link
-            for link in response.json().get("links", [])
-            if link.get("rel") == "child"
+            link for link in response.json().get("links", []) if link.get("rel") == "child"
         ]
-        return {link.get("title"): urljoin(catalog_url,
-                                           link["href"]) for link in child_links}
+        return {link.get("title"): urljoin(catalog_url, link["href"]) for link in child_links}
     except requests.RequestException as e:
         print(f"FATAL: Could not fetch entry catalog {catalog_url}. Error: {e}")
         return {}
