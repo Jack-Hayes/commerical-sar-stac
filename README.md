@@ -4,6 +4,8 @@ This repository provides tools to discover, consolidate, and visualize metadata 
 
 The primary goal is to create a unified, harmonized GeoDataFrame for each provider, which is then saved in GeoParquet format. The entire process is automated to run weekly via GitHub Actions, ensuring the datasets remain up-to-date.
 
+> **_NOTE:_**  I beleive that Synspective only provides open data upon request as of October 15, 2025 https://synspective.com/gallery/
+
 ## Data and API Usage Disclaimer
 
 This repository contains open-source code for accessing and processing sample datasets provided by commercial companies including Capella Space, Umbra, and ICEYE.

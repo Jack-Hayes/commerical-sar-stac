@@ -15,7 +15,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Mamba
-        uses: mamba-org/setup-mamba@v1
+        #  Pin to a specific, stable version instead of the floating 'v1' tag
+        uses: mamba-org/setup-mamba@v1.10.0
         with:
           mamba-version: "latest"
           
