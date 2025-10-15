@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 101
+lint.select = ["E", "F", "W", "I", "UP"]
+lint.ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]

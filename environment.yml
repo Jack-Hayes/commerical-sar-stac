@@ -1,0 +1,17 @@
+name: commercial-sar
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  # Data Processing
+  - pandas=2.2.3
+  - geopandas=1.0.1
+  - pyarrow
+  - shapely=2.1.0
+  # Networking
+  - requests=2.32.3
+  - aiohttp=3.9.5
+  - s3fs=2024.3.1
+  # Deve & Testing
+  - pytest
+  - ruff

@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Mamba
+        uses: mamba-org/setup-mamba@v1
+        with:
+          mamba-version: "latest"
+          
+      - name: Create environment
+        run: mamba env create -f environment.yml
+
+      - name: Run linter
+        shell: "bash -l {0}"
+        run: |
+          mamba activate commercial-sar
+          ruff check .
+          ruff format --check .
+
+      - name: Run tests
+        shell: "bash -l {0}"
+        run: |
+          mamba activate commercial-sar
+          pytest
