@@ -1,93 +1,161 @@
-def process_stac_item(item_json, url, provider):
-    """Generic pre-processing for a raw STAC item JSON."""
-    if not item_json or not item_json.get("geometry"):
-        return None
+import json
 
-    record = item_json.get("properties", {})
-    record["geometry"] = item_json.get("geometry")
-    record["id"] = item_json.get("id")
-    record["stac_item_url"] = url
+import numpy as np
 
-    assets = item_json.get("assets", {})
-    if not isinstance(assets, dict):
-        return record
 
-    if provider == "umbra":
-        for asset_key, asset_data in assets.items():
-            title = asset_data.get("title")
-            if title:
-                col_name = f"asset_{title.replace('-', '_').replace('.', '_').lower()}"
-                record[col_name] = url.replace(url.split("/")[-1], asset_key)
+def extract_bbox_struct(geometry, item_bbox=None):
+    """
+    Extract bbox as a dict with xmin, ymin, xmax, ymax.
+    Prefers item_bbox if available, otherwise calculates from geometry.
+    """
+    if item_bbox and len(item_bbox) >= 4:
+        return {
+            "xmin": item_bbox[0],
+            "ymin": item_bbox[1],
+            "xmax": item_bbox[2],
+            "ymax": item_bbox[3],
+        }
+
+    # Calculate from geometry
+    bounds = geometry.bounds  # (minx, miny, maxx, maxy)
+    return {
+        "xmin": bounds[0],
+        "ymin": bounds[1],
+        "xmax": bounds[2],
+        "ymax": bounds[3],
+    }
+
+
+def extract_datetime_fields(properties):
+    """
+    Extract start_datetime and end_datetime from STAC properties.
+    Falls back to 'datetime' if start/end variants not available.
+    """
+    start_dt = properties.get("start_datetime") or properties.get("datetime")
+    end_dt = properties.get("end_datetime") or start_dt
+    return start_dt, end_dt
+
+
+def flatten_stac_properties(stac_item):
+    """
+    Flatten STAC item properties for stac-map compatibility.
+
+    Returns a dict with:
+    - Flattened properties from the STAC item
+    - assets: The assets object (for stac-map AssetsSection)
+    - links: The links array (for stac-map LinksSection)
+    """
+    properties = stac_item.get("properties", {}).copy()
+
+    # Add assets and links as top-level properties for stac-map
+    properties["assets"] = stac_item.get("assets", {})
+    properties["links"] = stac_item.get("links", [])
+
+    return properties
+
+
+def clean_numpy_arrays(obj):
+    """
+    Recursively convert numpy arrays to Python lists and numpy types to native Python types.
+    This prevents bloated Parquet files with unnecessary numpy wrappers.
+    """
+    if isinstance(obj, dict):
+        return {k: clean_numpy_arrays(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [clean_numpy_arrays(item) for item in obj]
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
     else:
-        for key, asset_data in assets.items():
-            col_name = f"asset_{key.replace('-', '_')}"
-            record[col_name] = asset_data.get("href")
-
-    return record
+        return obj
 
 
-def _sanitize_for_parquet(gdf):
+def compact_assets(assets_dict):
     """
-    A robust helper function to ensure all columns are Parquet-compatible.
-    It converts any column containing lists or dicts into strings.
+    Compact assets by:
+    1. Removing None values (Umbra has 23k keys, only ~10 are non-None)
+    2. Converting numpy arrays to lists
+    3. Returning as JSON string for efficient storage
     """
+    if not assets_dict:
+        return "{}"
+
+    # Filter out None values
+    compacted = {k: v for k, v in assets_dict.items() if v is not None}
+
+    # Clean numpy arrays
+    compacted = clean_numpy_arrays(compacted)
+
+    # Return as JSON string
+    return json.dumps(compacted)
+
+
+def serialize_complex_columns(gdf):
+    """
+    Selectively serialize only problematic columns to JSON strings.
+
+    Strategy:
+    - assets: Serialize to JSON (remove None values, convert numpy arrays)
+    - links: Keep as list (stac-map needs array)
+    - Other complex columns with mixed types: Serialize
+    - Everything else: Keep as-is
+    """
+    gdf = gdf.copy()
+
+    # Columns to NEVER serialize (keep as structured)
+    never_serialize = {"geometry", "bbox", "links"}
+
+    # Columns to ALWAYS serialize
+    always_serialize = {"assets"}
+
     for col in gdf.columns:
-        if gdf[col].dtype == "object" and col != "geometry":
-            # Check if any non-null cell in the column is a list or dict
-            is_complex = gdf[col].dropna().apply(lambda x: isinstance(x, (list, dict))).any()
-            if is_complex:
-                print(f"    - Normalizing mixed-type column '{col}' to string.")
-                # Convert entire column to string to ensure type consistency
-                gdf[col] = gdf[col].astype(str)
+        if col in never_serialize:
+            continue
+
+        if col in always_serialize:
+            # Special handling for assets
+            if col == "assets":
+                gdf[col] = gdf[col].apply(compact_assets)
+            continue
+
+        # Check if column contains complex types
+        non_null_values = gdf[col].dropna()
+        if len(non_null_values) == 0:
+            continue
+
+        has_complex = any(isinstance(v, (list, dict)) for v in non_null_values)
+
+        # Serialize if contains complex types
+        if has_complex:
+            gdf[col] = gdf[col].apply(
+                lambda x: json.dumps(clean_numpy_arrays(x)) if isinstance(x, (list, dict)) else x
+            )
+
     return gdf
 
 
 def clean_capella_gdf(gdf):
     """Applies cleaning rules specific to Capella GeoDataFrames."""
+    print("Applying cleaning for Capella (2D geometry).")
     gdf = gdf.copy()
-    if "proj:centroid" in gdf.columns:
-        gdf = gdf.drop(columns=["proj:centroid"])
-    if "proj:shape" in gdf.columns:
-        gdf["rows"] = gdf["proj:shape"].apply(
-            lambda x: x[0] if isinstance(x, list) and len(x) > 0 else None
-        )
-        gdf["cols"] = gdf["proj:shape"].apply(
-            lambda x: x[1] if isinstance(x, list) and len(x) > 1 else None
-        )
-        gdf = gdf.drop(columns=["proj:shape"])
-
-    gdf = _sanitize_for_parquet(gdf)
+    gdf.geometry = gdf.geometry.force_2d()
     return gdf
 
 
 def clean_iceye_gdf(gdf):
     """Applies cleaning rules specific to ICEYE GeoDataFrames."""
+    print("Applying cleaning for ICEYE (2D geometry).")
     gdf = gdf.copy()
-    cols_to_drop = ["proj:centroid", "raster:bands"]
-    existing_cols = [col for col in cols_to_drop if col in gdf.columns]
-    if existing_cols:
-        gdf = gdf.drop(columns=existing_cols)
-
-    if "proj:shape" in gdf.columns:
-        gdf["rows"] = gdf["proj:shape"].apply(
-            lambda x: x[0] if isinstance(x, list) and len(x) > 0 else None
-        )
-        gdf["cols"] = gdf["proj:shape"].apply(
-            lambda x: x[1] if isinstance(x, list) and len(x) > 1 else None
-        )
-        gdf = gdf.drop(columns=["proj:shape"])
-
-    if "processing:software" in gdf.columns:
-        gdf["processing:software"] = gdf["processing:software"].apply(
-            lambda x: x.get("processor") if isinstance(x, dict) else x
-        )
-        gdf = _sanitize_for_parquet(gdf)
+    gdf.geometry = gdf.geometry.force_2d()
     return gdf
 
 
 def clean_umbra_gdf(gdf):
     """Applies cleaning rules specific to Umbra GeoDataFrames."""
+    print("Applying cleaning for Umbra (2D geometry).")
     gdf = gdf.copy()
     gdf.geometry = gdf.geometry.force_2d()
-    gdf = _sanitize_for_parquet(gdf)
     return gdf
