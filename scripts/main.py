@@ -15,6 +15,10 @@ from scripts.helpers.processing import (
     clean_capella_gdf,
     clean_iceye_gdf,
     clean_umbra_gdf,
+    extract_bbox_struct,
+    extract_datetime_fields,
+    flatten_stac_properties,
+    serialize_complex_columns,
 )
 
 # --- Constants ---
@@ -71,46 +75,48 @@ async def process_provider(provider, session):
     tasks = [fetch_json_tolerant(session, url) for url in item_urls]
     item_jsons = await asyncio.gather(*tasks)
 
-    # --- 3. Pre-process into records ---
+    # --- 3. Pre-process into records with stac-map schema ---
     records = []
-    for url, item_json in zip(item_urls, item_jsons):
+    for item_url, item_json in zip(item_urls, item_jsons):
         if item_json and item_json.get("geometry"):
-            record = item_json.get("properties", {})
-            record["geometry"] = item_json.get("geometry")  # Keep as dict for now
-            record["id"] = item_json.get("id")
-            record["stac_item_url"] = url
+            try:
+                properties = item_json.get("properties", {})
+                start_dt, end_dt = extract_datetime_fields(properties)
+                bbox_val = item_json.get("bbox")
+                geom = shape(item_json.get("geometry"))
+                bbox_struct = extract_bbox_struct(geom, bbox_val)
 
-            assets = item_json.get("assets", {})
-            if isinstance(assets, dict):
-                if provider == "umbra":
-                    for asset_key, asset_data in assets.items():
-                        title = asset_data.get("title")
-                        if title:
-                            col_name = f"asset_{title.replace('-', '_').replace('.', '_').lower()}"
-                            record[col_name] = url.replace(url.split("/")[-1], asset_key)
-                else:
-                    for key, asset_data in assets.items():
-                        col_name = f"asset_{key.replace('-', '_')}"
-                        record[col_name] = asset_data.get("href")
-            records.append(record)
+                # Flatten STAC properties (includes compacted assets + resolved links)
+                flattened_props = flatten_stac_properties(item_json, item_url, provider=provider)
+
+                # Remove the string datetime fields from flattened_props
+                # so our parsed pd.Timestamp objects take precedence
+                flattened_props.pop("start_datetime", None)
+                flattened_props.pop("end_datetime", None)
+                flattened_props.pop("datetime", None)
+
+                record = {
+                    "id": item_json.get("id"),
+                    "geometry": geom,
+                    "bbox": bbox_struct,
+                    "start_datetime": start_dt,
+                    "end_datetime": end_dt,
+                    "provider": provider,
+                    **flattened_props,
+                }
+                records.append(record)
+            except Exception as e:
+                print(f"Warning: Could not process item {item_json.get('id')}. Error: {e}")
 
     if not records:
         print(f"No valid records processed for {provider}. Skipping.")
         return
 
-    # --- 4. Create GeoDataFrame using the robust multi-step pattern ---
-    # a) Create a standard DataFrame first.
+    # --- 4. Create GeoDataFrame ---
     df = pd.DataFrame(records)
+    gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
 
-    # b) Manually create the GeoSeries from the dictionary column.
-    geometries = [shape(geom) for geom in df["geometry"]]
-
-    # c) Assemble the final, valid GeoDataFrame.
-    gdf = gpd.GeoDataFrame(df.drop(columns=["geometry"]), geometry=geometries, crs="EPSG:4326")
-
-    gdf["provider"] = provider
-
-    # --- 5. Clean and Save ---
+    # --- 5. Clean (includes 2D geometry + geometry_geojson for stac-map) ---
     cleaner_func = {
         "capella": clean_capella_gdf,
         "iceye": clean_iceye_gdf,
@@ -120,18 +126,50 @@ async def process_provider(provider, session):
     if cleaner_func:
         gdf = cleaner_func(gdf)
 
+    # Serialize complex columns (handles mixed types, assets, links, etc.)
+    gdf = serialize_complex_columns(gdf)
+
+    # --- 6. Save ---
     provider_output_dir = os.path.join(OUTPUT_DIR, provider)
     os.makedirs(provider_output_dir, exist_ok=True)
 
     if provider == "capella":
-        for product_type, group in gdf.groupby("sar:product_type"):
-            path = os.path.join(provider_output_dir, f"capella_{product_type}.parquet")
-            print(f"Saving {len(group)} items to {path}...")
-            group.to_parquet(path)
+        # Split Capella by sar:product_type
+        if "sar:product_type" in gdf.columns:
+            product_types = gdf["sar:product_type"].dropna().unique()
+            print(f"\n{provider.upper()} found {len(product_types)} product types:")
+
+            for product_type in product_types:
+                subset = gdf[gdf["sar:product_type"] == product_type].copy()
+                subset = subset.drop(columns=["sar:product_type"])
+
+                path = os.path.join(provider_output_dir, f"capella_{product_type}.parquet")
+                try:
+                    subset.to_parquet(path, compression="snappy")
+                    file_size_mb = os.path.getsize(path) / 1024 / 1024
+                    print(f"capella_{product_type}: {len(subset)} rows, {file_size_mb:.2f} MB")
+                except Exception as e:
+                    print(f"capella_{product_type}: {e}")
+        else:
+            # Fallback if no product_type
+            path = os.path.join(provider_output_dir, f"{provider}.parquet")
+            gdf.to_parquet(path, compression="snappy")
+            print(f"{provider.upper()}: {len(gdf)} rows")
     else:
+        # ICEYE and Umbra - save as single file
         path = os.path.join(provider_output_dir, f"{provider}.parquet")
-        print(f"Saving {len(gdf)} items to {path}...")
-        gdf.to_parquet(path)
+        try:
+            gdf.to_parquet(path, compression="snappy")
+            file_size_mb = os.path.getsize(path) / 1024 / 1024
+            print(f"\n{provider.upper()}:")
+            print(f"  File: {path}")
+            print(f"  Size: {file_size_mb:.2f} MB")
+            print(f"  Rows: {len(gdf)}")
+        except Exception as e:
+            print(f"\n{provider.upper()}: Failed to save")
+            print(f"  Error: {e}")
+
+    print(f"--- Finished provider: {provider.upper()} ---")
 
 
 async def main(providers_to_process):
