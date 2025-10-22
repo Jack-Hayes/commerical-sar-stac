@@ -77,7 +77,7 @@ async def process_provider(provider, session):
 
     # --- 3. Pre-process into records with stac-map schema ---
     records = []
-    for item_json in item_jsons:
+    for item_url, item_json in zip(item_urls, item_jsons):
         if item_json and item_json.get("geometry"):
             try:
                 properties = item_json.get("properties", {})
@@ -86,8 +86,14 @@ async def process_provider(provider, session):
                 geom = shape(item_json.get("geometry"))
                 bbox_struct = extract_bbox_struct(geom, bbox_val)
 
-                # Flatten STAC properties including assets and links
-                flattened_props = flatten_stac_properties(item_json)
+                # Flatten STAC properties (includes compacted assets + resolved links)
+                flattened_props = flatten_stac_properties(item_json, item_url, provider=provider)
+
+                # Remove the string datetime fields from flattened_props
+                # so our parsed pd.Timestamp objects take precedence
+                flattened_props.pop("start_datetime", None)
+                flattened_props.pop("end_datetime", None)
+                flattened_props.pop("datetime", None)
 
                 record = {
                     "id": item_json.get("id"),
@@ -95,8 +101,7 @@ async def process_provider(provider, session):
                     "bbox": bbox_struct,
                     "start_datetime": start_dt,
                     "end_datetime": end_dt,
-                    "provider": provider,  # Add provider here in the record
-                    # Spread flattened properties into the record
+                    "provider": provider,
                     **flattened_props,
                 }
                 records.append(record)
@@ -111,7 +116,7 @@ async def process_provider(provider, session):
     df = pd.DataFrame(records)
     gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
 
-    # --- 5. Clean ---
+    # --- 5. Clean (includes 2D geometry + geometry_geojson for stac-map) ---
     cleaner_func = {
         "capella": clean_capella_gdf,
         "iceye": clean_iceye_gdf,
@@ -121,6 +126,7 @@ async def process_provider(provider, session):
     if cleaner_func:
         gdf = cleaner_func(gdf)
 
+    # Serialize complex columns (handles mixed types, assets, links, etc.)
     gdf = serialize_complex_columns(gdf)
 
     # --- 6. Save ---
@@ -128,18 +134,40 @@ async def process_provider(provider, session):
     os.makedirs(provider_output_dir, exist_ok=True)
 
     if provider == "capella":
-        # Extract sar:product_type from properties for grouping
-        gdf["sar:product_type"] = gdf["sar:product_type"].fillna("unknown")
-        for product_type, group in gdf.groupby("sar:product_type"):
-            # Drop the temporary column before saving
-            group = group.drop(columns=["sar:product_type"])
-            path = os.path.join(provider_output_dir, f"capella_{product_type}.parquet")
-            print(f"Saving {len(group)} items to {path}...")
-            group.to_parquet(path)
+        # Split Capella by sar:product_type
+        if "sar:product_type" in gdf.columns:
+            product_types = gdf["sar:product_type"].dropna().unique()
+            print(f"\n{provider.upper()} found {len(product_types)} product types:")
+
+            for product_type in product_types:
+                subset = gdf[gdf["sar:product_type"] == product_type].copy()
+                subset = subset.drop(columns=["sar:product_type"])
+
+                path = os.path.join(provider_output_dir, f"capella_{product_type}.parquet")
+                try:
+                    subset.to_parquet(path, compression="snappy")
+                    file_size_mb = os.path.getsize(path) / 1024 / 1024
+                    print(f"capella_{product_type}: {len(subset)} rows, {file_size_mb:.2f} MB")
+                except Exception as e:
+                    print(f"capella_{product_type}: {e}")
+        else:
+            # Fallback if no product_type
+            path = os.path.join(provider_output_dir, f"{provider}.parquet")
+            gdf.to_parquet(path, compression="snappy")
+            print(f"{provider.upper()}: {len(gdf)} rows")
     else:
+        # ICEYE and Umbra - save as single file
         path = os.path.join(provider_output_dir, f"{provider}.parquet")
-        print(f"Saving {len(gdf)} items to {path}...")
-        gdf.to_parquet(path)
+        try:
+            gdf.to_parquet(path, compression="snappy")
+            file_size_mb = os.path.getsize(path) / 1024 / 1024
+            print(f"\n{provider.upper()}:")
+            print(f"  File: {path}")
+            print(f"  Size: {file_size_mb:.2f} MB")
+            print(f"  Rows: {len(gdf)}")
+        except Exception as e:
+            print(f"\n{provider.upper()}: Failed to save")
+            print(f"  Error: {e}")
 
     print(f"--- Finished provider: {provider.upper()} ---")
 
