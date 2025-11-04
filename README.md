@@ -58,7 +58,6 @@ curl -L -o umbra_ard.parquet "https://raw.githubusercontent.com/Jack-Hayes/comme
 
 curl -L -o capella_GEC_ard.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/ard/capella/capella_GEC.parquet"
 ```
-```
 
 ### PowerShell (Windows)
 
