@@ -1,12 +1,46 @@
 # Commercial SAR STAC Catalogs
 
-This repository provides tools to discover, consolidate, and visualize metadata from the open data STAC catalogs of major commercial SAR providers: Capella Space, ICEYE, and Umbra. Though note that Capella already has a great interactive web map for its open data https://felt.com/map/Capella-Space-Open-Data-bB24xsH3SuiUlpMdDbVRaA?loc=0,-20.5,1.83z 
+This repository provides tools to discover, consolidate, and visualize metadata from the open data STAC catalogs of major commercial SAR providers: Capella Space, ICEYE, and Umbra.
 
-The primary goal is to create a unified, harmonized GeoDataFrame for each provider, which is then saved in GeoParquet format. The entire process is automated to run weekly via GitHub Actions, ensuring the datasets remain up-to-date.
+The primary goal is to create a harmonized GeoDataFrame for each provider, which is then saved in GeoParquet format. The entire process is automated to run weekly via GitHub Actions, ensuring the datasets remain up-to-date.
 
 > **_NOTE:_**  I beleive that Synspective only provides open data upon request as of October 15, 2025 https://synspective.com/gallery/
 
 Inspired by [@scottyhq](https://github.com/scottyhq)'s [stac2geojson](https://github.com/uw-cryo/stac2geojson)
+
+## Parquet Formats
+
+### VIZ (Visualization)
+Optimized for browser-based visualization with [stac-map](https://developmentseed.org/blog/2025-09-02-stacmap/):
+- Datetime fields parsed to `pd.Timestamp` for temporal sliders
+- Bbox stored as nested dict for spatial queries
+- Assets compacted to essential fields (href, type, roles)
+- GeoJSON geometry serialized for JavaScript compatibility
+- Links resolved to absolute URLs
+
+Note that Capella already has a great interactive web map for its open data [https://felt.com/map/Capella-Space-Open-Data-bB24xsH3SuiUlpMdDbVRaA?loc=0,-20.5,1.83z](https://felt.com/map/Capella-Space-Open-Data-bB24xsH3SuiUlpMdDbVRaA?loc=0,-20.5,1.83z) and users should refer to this while it's still maintained.
+
+[Development Seed](https://developmentseed.org/) provides a great open-source tool called [stac-map](https://developmentseed.org/stac-map/) for visualizing these derived geoparquets -- all you need is the GitHub endpoint to the raw geoparquet file of interest. This should match a structure similar to: 
+
+[https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/capella/capella_GEC.parquet](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/capella/capella_GEC.parquet)
+
+Below are hyperlinks to access the respective parquets on this repo:
+* ICEYE: [All ICEYE open data samples](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/iceye/iceye.parquet)
+* Umbra: [All Umbra open data samples](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/umbra/umbra.parquet)
+* Capella:
+  [CPHD](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/capella/capella_CPHD.parquet) |
+  [CSI](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/capella/capella_CSI.parquet) |
+  [GEC](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/capella/capella_GEC.parquet) |
+  [GEO](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/capella/capella_GEO.parquet) |
+  [SICD](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/capella/capella_SICD.parquet) |
+  [SIDD](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/capella/capella_SIDD.parquet) |
+  [SLC](https://developmentseed.org/stac-map/?href=https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/refs/heads/main/parquets/viz/capella/capella_SLC.parquet)
+
+### ARD (Analysis-Ready Data)
+Optimized for programmatic analysis:
+- Asset hrefs expanded as individual columns (e.g., `asset_thumbnail`, `asset_overview`)
+- Full STAC properties preserved
+- Minimal transformations (e.g. serializing cols with mixed dtypes) for easier filtering/analysis
 
 ## Downloading the Parquet Files
 
@@ -37,22 +71,6 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/ard/capella/capella_GEC.parquet" -OutFile "capella_GEC_ard.parquet"
 ```
 
-# Output Formats
-
-### VIZ (Visualization)
-Optimized for browser-based visualization with [stac-map](https://developmentseed.org/stac-map/):
-- Datetime fields parsed to `pd.Timestamp` for temporal sliders
-- Bbox stored as nested dict for spatial queries
-- Assets compacted to essential fields (href, type, roles)
-- GeoJSON geometry serialized for JavaScript compatibility
-- Links resolved to absolute URLs
-
-### ARD (Analysis-Ready Data)
-Optimized for programmatic analysis:
-- Asset hrefs expanded as individual columns (e.g., `asset_thumbnail`, `asset_overview`)
-- Full STAC properties preserved
-- Minimal transformations (e.g. serializing cols with mixed dtypes) for easier filtering/analysis
-
 ## Data and API Usage Disclaimer
 
 This repository contains open-source code for accessing and processing sample datasets provided by commercial companies including Capella Space, Umbra, and ICEYE.
@@ -77,7 +95,7 @@ The ingestion process follows cloud-optimized best practices:
 ## Repository Structure
 
 -   `.github/workflows/`: Contains GitHub Actions for CI (testing, linting) and weekly data updates.
--   `parquets/`: Stores the output GeoParquet files, organized by provider.
+-   `parquets/`: Stores the output GeoParquet files, organized by format (`/viz` or `/ard`) and provider.
 -   `scripts/`: The main Python source code for data ingestion and processing.
 -   `tests/`: `pytest` tests to validate endpoints and data structures.
 -   `environment.yml`: The Conda environment file to ensure reproducibility.
@@ -112,3 +130,28 @@ The ingestion process follows cloud-optimized best practices:
     # Process specific providers
     python -m scripts.main capella iceye
     ```
+
+## Contributing
+
+Contributions are welcome!  
+This repository follows standard GitHub workflows with a protected `main` branch.
+
+### How to contribute
+
+1. **Fork** this repository to your own GitHub account.
+2. **Create a feature branch** from `main` in your fork (for example, `feature/my-improvement`).
+3. **Commit** your changes using clear, signed commits.
+4. **Open a Pull Request (PR)** against the `main` branch of this repository.
+
+All pull requests:
+- Must pass automated checks and code quality scans.
+- Require at least one review approval (by a repository admin, me :smiley:).
+- Cannot be force-pushed or merged directly into `main`.
+
+Once reviewed and approved, your PR will be merged following a linear history (no merge commits).
+
+### Licensing
+
+This project is released under the [MIT License](./LICENSE) 
+
+By contributing, you agree that your contributions will be licensed under the same terms.
