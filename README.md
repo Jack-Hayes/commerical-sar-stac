@@ -17,28 +17,41 @@ You can download the latest generated Parquet files directly using command-line 
 ### Bash (Linux/macOS)
 
 ```bash
-# Download the ICEYE parquet file
-curl -L -o iceye.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/iceye/iceye.parquet"
+# Download 'ARD' format (for analysis)
+curl -L -o iceye_ard.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/ard/iceye/iceye.parquet"
 
-# Download the Umbra parquet file
-curl -L -o umbra.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/umbra/umbra.parquet"
+curl -L -o umbra_ard.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/ard/umbra/umbra.parquet"
 
-# Download a sample Capella parquet file (GEC)
-curl -L -o capella_GEC.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/capella/capella_GEC.parquet"
+curl -L -o capella_GEC_ard.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/ard/capella/capella_GEC.parquet"
+```
 ```
 
 ### PowerShell (Windows)
 
 ```console
-# Download the ICEYE parquet file
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/iceye/iceye.parquet" -OutFile "iceye.parquet"
+# Download 'ARD' format (for analysis)
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/ard/iceye/iceye.parquet" -OutFile "iceye_ard.parquet"
 
-# Download the Umbra parquet file
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/umbra/umbra.parquet" -OutFile "umbra.parquet"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/ard/umbra/umbra.parquet" -OutFile "umbra_ard.parquet"
 
-# Download a sample Capella parquet file (GEC)
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/capella/capella_GEC.parquet" -OutFile "capella_GEC.parquet"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/ard/capella/capella_GEC.parquet" -OutFile "capella_GEC_ard.parquet"
 ```
+
+# Output Formats
+
+### VIZ (Visualization)
+Optimized for browser-based visualization with [stac-map](https://developmentseed.org/stac-map/):
+- Datetime fields parsed to `pd.Timestamp` for temporal sliders
+- Bbox stored as nested dict for spatial queries
+- Assets compacted to essential fields (href, type, roles)
+- GeoJSON geometry serialized for JavaScript compatibility
+- Links resolved to absolute URLs
+
+### ARD (Analysis-Ready Data)
+Optimized for programmatic analysis:
+- Asset hrefs expanded as individual columns (e.g., `asset_thumbnail`, `asset_overview`)
+- Full STAC properties preserved
+- Minimal transformations (e.g. serializing cols with mixed dtypes) for easier filtering/analysis
 
 ## Data and API Usage Disclaimer
 
@@ -87,9 +100,15 @@ The ingestion process follows cloud-optimized best practices:
     You can process specific providers by passing their names as command-line arguments.
 
     ```bash
-    # Process all providers
+    # Process all providers in both formats (default)
     python -m scripts.main capella iceye umbra
 
-    # Process only Capella and ICEYE
+    # Process only VIZ format
+    python -m scripts.main capella iceye umbra --format viz
+
+    # Process only ARD format
+    python -m scripts.main capella iceye umbra --format ard
+
+    # Process specific providers
     python -m scripts.main capella iceye
     ```
