@@ -4,7 +4,7 @@ This repository provides tools to discover, consolidate, and visualize metadata 
 
 The primary goal is to create a harmonized GeoDataFrame for each provider, which is then saved in GeoParquet format. The entire process is automated to run weekly via GitHub Actions, ensuring the datasets remain up-to-date.
 
-> **_NOTE:_**  I beleive that Synspective only provides open data upon request as of October 15, 2025 https://synspective.com/gallery/
+> **_NOTE:_**  I believe that Synspective only provides open data upon request as of October 15, 2025 https://synspective.com/gallery/
 
 Inspired by [@scottyhq](https://github.com/scottyhq)'s [stac2geojson](https://github.com/uw-cryo/stac2geojson)
 
@@ -13,7 +13,7 @@ Inspired by [@scottyhq](https://github.com/scottyhq)'s [stac2geojson](https://gi
 ### VIZ (Visualization)
 Optimized for browser-based visualization with [stac-map](https://developmentseed.org/blog/2025-09-02-stacmap/):
 - Datetime fields parsed to `pd.Timestamp` for temporal sliders
-- Bbox stored as nested dict for spatial queries
+- Bbox stored as a nested dict for spatial queries
 - Assets compacted to essential fields (href, type, roles)
 - GeoJSON geometry serialized for JavaScript compatibility
 - Links resolved to absolute URLs
@@ -41,6 +41,22 @@ Optimized for programmatic analysis:
 - Asset hrefs expanded as individual columns (e.g., `asset_thumbnail`, `asset_overview`)
 - Full STAC properties preserved
 - Minimal transformations (e.g. serializing cols with mixed dtypes) for easier filtering/analysis
+
+## Streaming Parquet Files Directly in Python
+
+You can load any of the published GeoParquet files directly into Python using [GeoPandas](https://geopandas.org/) without downloading them first. Simply pass the raw GitHub URL to `gpd.read_file()`:
+
+```python
+import geopandas as gpd
+
+# Example: Load Capella CPHD ARD parquet directly from GitHub
+url = "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/ard/capella/capella_CPHD.parquet"
+gdf = gpd.read_file(url)
+```
+
+This works for any of the Parquet files; just replace the URL with the desired dataset.
+
+> **_NOTE:_** It is important to use the 'ARD' Parquet files for Python streaming and local GIS software, as they are serialized specifically for programmatic use, as opposed to the 'VIZ' files.
 
 ## Downloading the Parquet Files
 
