@@ -146,6 +146,53 @@ The ingestion process follows cloud-optimized best practices:
     python -m scripts.main capella iceye
     ```
 
+## KMZ export tool (tools/get_kmz.py)
+
+**Warning:** This tool is under active development and currently supports Capella datasets only.
+
+### Overview
+
+The `tools/get_kmz.py` CLI tool exports a KMZ that visualizes acquisition geometry for a single STAC item taken from the local repository Parquet files. Given a provider, item id, and product dtype (SLC, GEO, CPHD, etc.), the tool points to the matching local Parquet (/ard) file, reads extended metadata for the item, and emits a KMZ with:
+
+* a satellite track built from state vectors,
+* look vectors (rays) drawn from every Nth state vector to the image center pixel,
+* a thumbnail overlaid (draped) on the ground so the acquisition footprint and look geometry can be inspected in Google Earth or Google Earth Engine, and
+* a popup table showing basic STAC fields plus waveform / sampling / pointing metadata (i.e. sampling frequency, PRF, pulse bandwidth, pulse duration, beamwidths, range/azimuth/ground resolutions, NESZ, and other available image geometry fields).
+
+### Behavior and inputs
+
+* Currently, the tool determines the input Parquet by mapping the supplied inputs to a local ARD file path: `parquets/ard/capella/capella_<DTYPE>.parquet` (DTYPE is the `--dtype` argument).
+* The CLI expects the ARD file to contain a row with `id` matching the supplied `--id`. The script reads the row, resolves `asset_metadata` (STAC item JSON) and `asset_thumbnail` (thumbnail) from the row, fetches metadata, and generates the KMZ.
+* The KMZ contains `doc.kml` and, if available, `preview.png` inside the KMZ archive.
+
+### Requirements
+
+* You must have the parquety files from this repo downloaded locally.
+* Dependencies to build KMZ (this will hopefully be fixed soon with an env handler):
+  * `pyproj==3.7.2` (for ECEF->LLA transforms)
+  * `simplekml==1.3.2` (for KML/KMZ creation)
+* If these optional packages are not installed, the CLI will exit with an actionable message explaining how to install them.
+
+### Example usage
+
+Run from the project root. This example writes the KMZ to your Desktop.
+
+```bash
+python -m tools.get_kmz --provider capella \
+  --id CAPELLA_C13_SP_SLC_HH_20251220124212_20251220124224 \
+  --dtype SLC \
+  --output-dir /tmp
+```
+
+### Help output
+
+You can view full CLI options with:
+
+```bash
+python -m tools.get_kmz -h
+```
+
+
 ## Contributing
 
 Contributions are welcome!  
