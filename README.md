@@ -155,7 +155,7 @@ The ingestion process follows cloud-optimized best practices:
 The `tools/get_kmz.py` CLI tool exports a KMZ that visualizes acquisition geometry for a single STAC item taken from the local repository Parquet files. Given a provider, item id, and product dtype (SLC, GEO, CPHD, etc.), the tool points to the matching local Parquet (/ard) file, reads extended metadata for the item, and emits a KMZ with:
 
 * a satellite track built from state vectors,
-* look vectors (rays) drawn from every Nth state vector to the image center pixel,
+* look vectors (rays) drawn from every Nth state vector to the image using satellite attitude quaternions
 * a thumbnail overlaid (draped) on the ground so the acquisition footprint and look geometry can be inspected in Google Earth or Google Earth Engine, and
 * a popup table showing basic STAC fields plus waveform / sampling / pointing metadata (i.e. sampling frequency, PRF, pulse bandwidth, pulse duration, beamwidths, range/azimuth/ground resolutions, NESZ, and other available image geometry fields).
 
@@ -168,9 +168,10 @@ The `tools/get_kmz.py` CLI tool exports a KMZ that visualizes acquisition geomet
 ### Requirements
 
 * You must have the parquety files from this repo downloaded locally.
-* Dependencies to build KMZ (this will hopefully be fixed soon with an env handler):
+* Dependencies to build KMZ (this will hopefully be fixed soon with an env handler, note that version pins aren't absolute):
   * `pyproj==3.7.2` (for ECEF->LLA transforms)
   * `simplekml==1.3.2` (for KML/KMZ creation)
+  * `scipy==1.16.3`
 * If these optional packages are not installed, the CLI will exit with an actionable message explaining how to install them.
 
 ### Example usage

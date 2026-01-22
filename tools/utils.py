@@ -4,10 +4,30 @@
 Small helpers to keep get_kml.py clean and testable.
 """
 
+from datetime import datetime
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
+
+
+def to_unix_ts(iso_str: str) -> float:
+    """Convert ISO8601 string to unix timestamp."""
+    return datetime.fromisoformat(iso_str.replace("Z", "+00:00")).timestamp()
+
+
+def calculate_pierce_range(meta_json: dict, factor: float = 1.05) -> float:
+    """Calculate dynamic slant range from reference positions with a buffer factor."""
+    img_meta = meta_json.get("collect", {}).get("image", {})
+    ref_ant = img_meta.get("reference_antenna_position")
+    ref_tgt = img_meta.get("reference_target_position")
+
+    if not ref_ant or not ref_tgt:
+        return 900000.0  # Fallback to ~900km if missing
+
+    dist = np.linalg.norm(np.array(ref_ant) - np.array(ref_tgt))
+    return float(dist * factor)
 
 
 def discover_parquet_paths(

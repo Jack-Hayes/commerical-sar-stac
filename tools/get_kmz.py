@@ -32,6 +32,7 @@ from collections.abc import Iterable as _Iterable
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import requests
 
 from tools import utils
@@ -53,7 +54,7 @@ def _import_optional_visualization_deps() -> tuple[Any, Any]:
         from pyproj import Transformer  # type: ignore
     except Exception as exc:
         raise ImportError(
-            "pyproj is required for coordinate transforms. "
+            "pyproj is required for coordinate transforms and scipy is required for rotation math."
             "Install with conda: `conda install -c conda-forge pyproj==3.7.2` "
             "or via pip: `pip install pyproj==3.7.2`"
         ) from exc
@@ -67,7 +68,12 @@ def _import_optional_visualization_deps() -> tuple[Any, Any]:
             "or via pip: `pip install simplekml==1.3.2`"
         ) from exc
 
-    return Transformer, simplekml
+    try:
+        from scipy.spatial.transform import Rotation as R
+    except Exception as exc:
+        raise ImportError("scipy is required for rotation math.`pip install scipy==1.16.3`") from exc
+
+    return Transformer, simplekml, R
 
 
 def fetch_json_safe(url: str) -> dict | None:
@@ -121,57 +127,88 @@ def _format_num(value: Any, fmt: str) -> str:
         return "n/a"
 
 
-# --- main KMZ builder and popup html (same approach as before) ---
+# --- main KMZ builder and popup html ---
 def build_kmz(
     *,
     transformer_cls: Any,
     simplekml_mod: Any,
+    rotation_mod: Any,
     meta_json: dict,
     item_row: dict,
     output_path: Path,
     vector_every_n: int = 5,
 ) -> None:
     """
-    Build and write a KMZ file containing:
-      - Track (satellite orbit) as a LineString with altitude absolute
-      - Optional look vectors from every Nth state vector to the image center
-      - A ground overlay using the geometry bbox and a preview image
-      - Popup HTML filled with important metadata
+    Build and write a KMZ file with high-fidelity geometry:
+      - Active Track: Satellite orbit constrained to the imaging window.
+      - Boresight Vectors: Rays derived from quaternions projected to the ground.
+      - Ground Overlay: Draped thumbnail using the acquisition bounding box.
+      - Popup HTML: Metadata for the specific STAC item.
     """
+    # 1. Dependency Setup
     transformer = transformer_cls.from_crs("EPSG:4978", "EPSG:4326", always_xy=True)
 
-    state_vectors = meta_json.get("collect", {}).get("state", {}).get("state_vectors", [])
-    orbit_path_lla: list[tuple[float, float, float]] = []
-    for sv in state_vectors:
-        pos = sv.get("position")
-        if not pos or len(pos) < 3:
-            continue
-        x, y, z = pos
-        lon, lat, alt = transformer.transform(x, y, z)
-        orbit_path_lla.append((lon, lat, alt))
+    # 2. Temporal Filtering (Fixes Stripmap length overshoot)
+    start_t = utils.to_unix_ts(meta_json["collect"]["start_timestamp"])
+    stop_t = utils.to_unix_ts(meta_json["collect"]["stop_timestamp"])
 
-    if not orbit_path_lla:
-        LOGGER.warning("No orbit state vectors found in metadata. KMZ will omit track/vecs.")
+    active_states = [
+        sv
+        for sv in meta_json.get("collect", {}).get("state", {}).get("state_vectors", [])
+        if start_t <= utils.to_unix_ts(sv["time"]) <= stop_t
+    ]
+    active_pointing = [
+        pv
+        for pv in meta_json.get("collect", {}).get("pointing", [])
+        if start_t <= utils.to_unix_ts(pv["time"]) <= stop_t
+    ]
 
-    target_ecef = (
-        meta_json.get("collect", {}).get("image", {}).get("center_pixel", {}).get("target_position")
-    )
-    target_lla = None
-    if target_ecef and len(target_ecef) >= 3:
-        target_lla = tuple(transformer.transform(*target_ecef))
+    if not active_states:
+        LOGGER.warning("No state vectors found within the imaging window. KMZ will be limited.")
 
-    thumb_bytes = None
-    thumb_url = item_row.get("asset_thumbnail")
-    if thumb_url:
-        thumb_bytes = fetch_bytes_safe(thumb_url)
+    # 3. Dynamic Slant Range (Fixes short rays with 5% pierce buffer)
+    projection_length = utils.calculate_pierce_range(meta_json)
 
+    # 4. Initialize KML and Folders
+    kml = simplekml_mod.Kml()
+    vec_folder = kml.newfolder(name="Look Vectors")
     popup_html = _build_popup_html(meta_json, item_row)
 
-    kml = simplekml_mod.Kml()
+    # 5. Build Orbit Track and Boresight Rays
+    track_coords: list[tuple[float, float, float]] = []
 
-    if orbit_path_lla:
-        track_coords = [(lon, lat, alt) for lon, lat, alt in orbit_path_lla]
-        track = kml.newlinestring(name="Orbit Track", coords=track_coords)
+    # We iterate through indices to keep states and pointing synchronized
+    for i in range(min(len(active_states), len(active_pointing))):
+        sv = active_states[i]
+        pv = active_pointing[i]
+
+        pos_ecef = np.array(sv["position"])
+        lon, lat, alt = transformer.transform(*pos_ecef)
+        track_coords.append((lon, lat, alt))
+
+        # Create a ray every Nth state vector
+        if i % vector_every_n == 0:
+            # Reorder Capella [w, x, y, z] to Scipy [x, y, z, w]
+            q = pv["attitude"]
+            q_scipy = [q[1], q[2], q[3], q[0]]
+
+            # Apply inverse rotation to project Antenna +Z (boresight) into ECEF
+            rot = rotation_mod.from_quat(q_scipy)
+            boresight_ecef_dir = rot.inv().apply([0, 0, 1])
+
+            # Project to ground intersection point
+            end_point_ecef = pos_ecef + (boresight_ecef_dir * projection_length)
+            end_lla = transformer.transform(*end_point_ecef)
+
+            vec = vec_folder.newlinestring(name=f"ray_{i}", coords=[(lon, lat, alt), end_lla])
+            vec.altitudemode = simplekml_mod.AltitudeMode.absolute
+            vec.style.linestyle.color = "ff00ff00"  # Solid Green
+            vec.style.linestyle.width = 2
+            vec.description = popup_html
+
+    # Add the Orbit Track Curtain
+    if track_coords:
+        track = kml.newlinestring(name="Active Orbit Track", coords=track_coords)
         track.altitudemode = simplekml_mod.AltitudeMode.absolute
         track.extrude = 1
         track.style.linestyle.color = simplekml_mod.Color.cyan
@@ -181,19 +218,11 @@ def build_kmz(
         )
         track.description = popup_html
 
-    vec_folder = kml.newfolder(name="Look Vectors")
-    for idx, (lon, lat, alt) in enumerate(orbit_path_lla):
-        if idx % vector_every_n != 0:
-            continue
-        if target_lla is None:
-            break
-        vec = vec_folder.newlinestring(
-            coords=[(lon, lat, alt), (target_lla[0], target_lla[1], target_lla[2])]
-        )
-        vec.altitudemode = simplekml_mod.AltitudeMode.absolute
-        vec.style.linestyle.color = "3200ff00"
-        vec.style.linestyle.width = 1
-        vec.description = popup_html
+    # 6. Ground Overlay (Image Thumbnail)
+    thumb_bytes = None
+    thumb_url = item_row.get("asset_thumbnail")
+    if thumb_url:
+        thumb_bytes = fetch_bytes_safe(thumb_url)
 
     try:
         bounds = item_row.get("geometry").bounds
@@ -201,14 +230,13 @@ def build_kmz(
         bounds = None
 
     if thumb_bytes and bounds:
-        overlay = kml.newgroundoverlay(name="Preview")
+        overlay = kml.newgroundoverlay(name="Capella Preview")
         overlay.icon.href = "preview.png"
-        overlay.latlonbox.north = bounds[3]
-        overlay.latlonbox.south = bounds[1]
-        overlay.latlonbox.east = bounds[2]
-        overlay.latlonbox.west = bounds[0]
+        overlay.latlonbox.north, overlay.latlonbox.south = bounds[3], bounds[1]
+        overlay.latlonbox.east, overlay.latlonbox.west = bounds[2], bounds[0]
         overlay.description = popup_html
 
+    # 7. Write to KMZ
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("doc.kml", kml.kml())
@@ -394,7 +422,7 @@ def main(argv: _Iterable[str] | None = None) -> int:
 
     # Import optional visualization dependencies lazily
     try:
-        TransformerCls, simplekml_mod = _import_optional_visualization_deps()
+        TransformerCls, simplekml_mod, R = _import_optional_visualization_deps()
     except ImportError as exc:
         LOGGER.error(str(exc))
         return 4
@@ -410,7 +438,7 @@ def main(argv: _Iterable[str] | None = None) -> int:
         return 6
 
     safe_id = str(item_id).replace("/", "_")
-    out_fname = f"{provider}_{safe_id}.kmz"
+    out_fname = f"{safe_id}.kmz"
     output_path = (output_dir / out_fname).absolute()
 
     LOGGER.info("Building KMZ to %s", output_path)
@@ -418,6 +446,7 @@ def main(argv: _Iterable[str] | None = None) -> int:
         build_kmz(
             transformer_cls=TransformerCls,
             simplekml_mod=simplekml_mod,
+            rotation_mod=R,
             meta_json=meta_json,
             item_row=row_dict,
             output_path=output_path,

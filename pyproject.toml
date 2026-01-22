@@ -10,3 +10,10 @@ quote-style = "double"
 pythonpath = [
   "."
 ]
+
+[project.optional-dependencies]
+viz = [
+    "pyproj==3.7.2",
+    "simplekml==1.3.2",
+    "simplekml==1.3.2",
+]
