@@ -505,9 +505,9 @@ def serialize_complex_columns(gdf):
         # Serialize if contains complex types
         if has_complex:
             gdf[col] = gdf[col].apply(
-                lambda x: json.dumps(normalize_value_for_parquet(x))
-                if isinstance(x, (list, dict))
-                else x
+                lambda x: (
+                    json.dumps(normalize_value_for_parquet(x)) if isinstance(x, (list, dict)) else x
+                )
             )
 
     # Handle mixed-type columns (like 'providers' in Umbra)
