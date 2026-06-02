@@ -8,6 +8,8 @@ The primary goal is to create a harmonized GeoDataFrame for each provider, which
 
 Inspired by [@scottyhq](https://github.com/scottyhq)'s [stac2geojson](https://github.com/uw-cryo/stac2geojson)
 
+[Web browser tool](https://pmuguda.github.io/open-sar-triad/) created by [Pavan Muguda Sanjeevamurthy](https://pmuguda.github.io/) for visualization.
+
 ## Parquet Formats
 
 ### VIZ (Visualization)
@@ -17,6 +19,8 @@ Optimized for browser-based visualization with [stac-map](https://developmentsee
 - Assets compacted to essential fields (href, type, roles)
 - GeoJSON geometry serialized for JavaScript compatibility
 - Links resolved to absolute URLs
+
+[Pavan Muguda Sanjeevamurthy](https://pmuguda.github.io/) created a great web browser tool that points towards the Umbra, Capella, and ICEYE datasets here. This interface is sleeker than the other visualization tools as it was built specifically for the data on the commercial-sar-stac repo and allows users higher fidelity filtering: [https://pmuguda.github.io/open-sar-triad/](https://pmuguda.github.io/open-sar-triad/).
 
 Note that Capella already has a great interactive web map for its open data [https://felt.com/map/Capella-Space-Open-Data-bB24xsH3SuiUlpMdDbVRaA?loc=0,-20.5,1.83z](https://felt.com/map/Capella-Space-Open-Data-bB24xsH3SuiUlpMdDbVRaA?loc=0,-20.5,1.83z) and users should refer to this while it's still maintained.
 
