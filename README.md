@@ -40,10 +40,12 @@ You can load any of the published GeoParquet files directly into Python using [G
 
 ```python
 import geopandas as gpd
+import fsspec
 
-# Example: Load Capella CPHD parquet directly from GitHub
 url = "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/capella/capella_CPHD.parquet"
-gdf = gpd.read_file(url)
+
+with fsspec.open(url, "rb") as f:
+    gdf = gpd.read_parquet(f)
 ```
 
 This works for any of the Parquet files; just replace the URL with the desired dataset.
