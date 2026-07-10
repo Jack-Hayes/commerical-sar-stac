@@ -41,7 +41,7 @@ You can load any of the published GeoParquet files directly into Python using [G
 ```python
 import geopandas as gpd
 
-# Example: Load Capella CPHD ARD parquet directly from GitHub
+# Example: Load Capella CPHD parquet directly from GitHub
 url = "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/capella/capella_CPHD.parquet"
 gdf = gpd.read_file(url)
 ```
@@ -57,7 +57,6 @@ You can download the latest generated Parquet files directly using command-line 
 ### Bash (Linux/macOS)
 
 ```bash
-# Download 'ARD' format (for analysis)
 curl -L -o iceye.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/iceye/iceye.parquet"
 
 curl -L -o umbra.parquet "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/umbra/umbra.parquet"
@@ -68,7 +67,6 @@ curl -L -o capella_GEC.parquet "https://raw.githubusercontent.com/Jack-Hayes/com
 ### PowerShell (Windows)
 
 ```console
-# Download 'ARD' format (for analysis)
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/iceye/iceye.parquet" -OutFile "iceye.parquet"
 
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Jack-Hayes/commerical-sar-stac/main/parquets/umbra/umbra.parquet" -OutFile "umbra.parquet"
