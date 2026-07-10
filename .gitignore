@@ -1,4 +1,5 @@
 testing_nbs/
+tools/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

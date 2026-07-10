@@ -40,7 +40,7 @@ jobs:
 
       # Run data ingestion
       - name: Run data ingestion script
-        run: python -m scripts.main capella iceye umbra --format both
+        run: python -m src.main capella iceye umbra
 
       # Run tests to validate new data
       - name: Run validation tests

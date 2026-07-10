@@ -71,7 +71,9 @@ def _import_optional_visualization_deps() -> tuple[Any, Any]:
     try:
         from scipy.spatial.transform import Rotation as R
     except Exception as exc:
-        raise ImportError("scipy is required for rotation math.`pip install scipy==1.16.3`") from exc
+        raise ImportError(
+            "scipy is required for rotation math.`pip install scipy==1.16.3`"
+        ) from exc
 
     return Transformer, simplekml, R
 
@@ -164,7 +166,9 @@ def build_kmz(
     ]
 
     if not active_states:
-        LOGGER.warning("No state vectors found within the imaging window. KMZ will be limited.")
+        LOGGER.warning(
+            "No state vectors found within the imaging window. KMZ will be limited."
+        )
 
     # 3. Dynamic Slant Range (Fixes short rays with 5% pierce buffer)
     projection_length = utils.calculate_pierce_range(meta_json)
@@ -200,7 +204,9 @@ def build_kmz(
             end_point_ecef = pos_ecef + (boresight_ecef_dir * projection_length)
             end_lla = transformer.transform(*end_point_ecef)
 
-            vec = vec_folder.newlinestring(name=f"ray_{i}", coords=[(lon, lat, alt), end_lla])
+            vec = vec_folder.newlinestring(
+                name=f"ray_{i}", coords=[(lon, lat, alt), end_lla]
+            )
             vec.altitudemode = simplekml_mod.AltitudeMode.absolute
             vec.style.linestyle.color = "ff00ff00"  # Solid Green
             vec.style.linestyle.width = 2
@@ -253,7 +259,9 @@ def _build_popup_html(meta_json: dict, row_dict: dict) -> str:
     radar_params = radar.get("time_varying_parameters", [{}])[0] or {}
     img_params = collect.get("image", {}) or {}
 
-    delta_line = _safe_get(img_params, "image_geometry", "delta_line_time", default="n/a")
+    delta_line = _safe_get(
+        img_params, "image_geometry", "delta_line_time", default="n/a"
+    )
     range_first_sample = _safe_get(
         img_params, "image_geometry", "range_to_first_sample", default=None
     )
@@ -262,7 +270,9 @@ def _build_popup_html(meta_json: dict, row_dict: dict) -> str:
     az_res = _safe_get(img_params, "azimuth_resolution", default=None)
     nesz_peak = _safe_get(img_params, "nesz_peak", default=None)
     az_beam = _safe_get(collect, "transmit_antenna", "azimuth_beamwidth", default=None)
-    el_beam = _safe_get(collect, "transmit_antenna", "elevation_beamwidth", default=None)
+    el_beam = _safe_get(
+        collect, "transmit_antenna", "elevation_beamwidth", default=None
+    )
     sampling_freq = _safe_get(collect, "radar", "sampling_frequency", default=None)
     prf = _safe_get(radar_params, "prf", default=None)
     pulse_bw = _safe_get(radar_params, "pulse_bandwidth", default=None)
@@ -415,7 +425,12 @@ def main(argv: _Iterable[str] | None = None) -> int:
 
     row = utils.find_row_by_id(gdf, item_id)
     if row is None:
-        LOGGER.error("Item id '%s' not found for provider '%s' (dtype=%s)", item_id, provider, dtype)
+        LOGGER.error(
+            "Item id '%s' not found for provider '%s' (dtype=%s)",
+            item_id,
+            provider,
+            dtype,
+        )
         return 3
 
     row_dict = _row_to_dict(row)

@@ -2,7 +2,7 @@ import pytest
 import requests
 
 # Import URLs from the main script to avoid duplication
-from scripts.main import CATALOG_URLS
+from src.main import CATALOG_URLS
 
 
 @pytest.mark.parametrize(
@@ -28,6 +28,8 @@ def test_s3_bucket_is_accessible():
     url = f"https://{bucket_name}.s3.us-west-2.amazonaws.com/"
     try:
         response = requests.head(url, timeout=10)
-        assert response.status_code == 200, f"Umbra bucket returned status {response.status_code}"
+        assert response.status_code == 200, (
+            f"Umbra bucket returned status {response.status_code}"
+        )
     except requests.RequestException as e:
         pytest.fail(f"Failed to connect to Umbra bucket at {url}. Error: {e}")
